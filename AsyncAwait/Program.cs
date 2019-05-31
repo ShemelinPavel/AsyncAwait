@@ -10,8 +10,8 @@ namespace AsyncAwait
     class Program
     {
         static string filesVaultDir;
-        static readonly ushort filesCount = 1;
-        static readonly ushort fileLineCount = 20;
+        static ushort filesCount;
+        static ushort fileLineCount;
         static Random rOperation;
         static Random rPartMathOperation;
         static Random rMulti;
@@ -32,7 +32,9 @@ namespace AsyncAwait
                 return;
             }
 
-            if (!(GenerateFiles()))
+            List<FileInfo> files;
+
+            if (!(GenerateFiles(out files)))
             {
                 Console.ReadKey();
                 return;
@@ -40,15 +42,66 @@ namespace AsyncAwait
 
             Log("Подготовка завершена\n Для выполнения процедуры расчета нажмите любую клавишу...");
 
+            Task<double>[] tasks = new Task<double>[files.Count];
+
+            for (int i = 0; i < tasks.Length; i++)
+            {
+                tasks[i] = ReadAndCalculateFileData(files[i]);
+            }
+
+            for (int i = 0; i < 100; i++)
+            {
+                Log($"!{i}");
+            }
+
+
             Console.ReadKey();
-
-
-
         }
 
-        static void Init()
+
+        static async Task<Double> ReadAndCalculateFileData(FileInfo file)
+        {
+            double res = await ReadAndCalculateFileDataAsync(file);
+
+            Log($"{file.FullName}  {res.ToString()}");
+
+            return res;
+        }
+
+        private static Task<double> ReadAndCalculateFileDataAsync(FileInfo file)
+        {
+
+            return Task.Run<double>(() =>
+            {
+                Double res = 0;
+
+                using (StreamReader sReader = new StreamReader(file.FullName))
+                {
+
+                    while (!(sReader.EndOfStream))
+                    {
+                        string[] curString = sReader.ReadLine().Split('/');
+                        if (curString[0] == "1")
+                        {
+                            res += Double.Parse(curString[1]) * Double.Parse(curString[2]);
+                        }
+                        else if (curString[0] == "2")
+                        {
+                            res += Double.Parse(curString[1]) / Double.Parse(curString[2]);
+                        }
+                    }
+                }
+                return res;
+            }
+            );
+        }
+
+    static void Init()
         {
             Log("Инициализация...");
+
+            filesCount = 200;
+            fileLineCount = 2000;
 
             rOperation = new Random(0);
             rPartMathOperation = new Random();
@@ -96,13 +149,15 @@ namespace AsyncAwait
             }
         }
 
-        static bool GenerateFiles()
+        static bool GenerateFiles(out List<FileInfo> files)
         {
             try
             {
                 Log("Генерация файлов данных...");
 
-                for (ushort i = 0; i <= filesCount; i++)
+                files = new List<FileInfo>();
+
+                for (ushort i = 0; i < filesCount; i++)
                 {
                     string filename = filesVaultDir + $"\\{i}.txt";
                     using (StreamWriter sWriter = new StreamWriter(filename))
@@ -112,12 +167,16 @@ namespace AsyncAwait
                             sWriter.WriteLine($"{rOperation.Next(1, 3)}/{rPartMathOperation.NextDouble() * rMulti.Next(1, 1000000)}/{rPartMathOperation.NextDouble() * rMulti.Next(1, 1000000)}");
                         }
                     }
+                    files.Add(new FileInfo(filename));
                 }
                 return true;
             }
             catch (Exception e)
             {
                 Log($"Что-то пошло не так: {e.Message}");
+
+                files = null;
+
                 return false;
             }
         }
