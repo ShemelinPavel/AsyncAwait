@@ -9,13 +9,50 @@ namespace AsyncAwait
 {
     class Program
     {
+        /// <summary>
+        /// директория где будут находится файла
+        /// </summary>
         static string filesVaultDir;
+
+        /// <summary>
+        /// количество файлов с данными
+        /// </summary>
         static ushort filesCount;
+
+        /// <summary>
+        /// количество строк в каждом файле
+        /// </summary>
         static ushort fileLineCount;
+
+        /// <summary>
+        /// рандомайзер для вида операции
+        /// </summary>
         static Random rOperation;
+
+        /// <summary>
+        /// рандомайзер для чисел
+        /// </summary>
         static Random rPartMathOperation;
+
+        /// <summary>
+        /// рандомайзер для множителя 
+        /// </summary>
         static Random rMulti;
 
+        /// <summary>
+        /// имя файля куда записывается результат
+        /// </summary>
+        static string resulFileName;
+
+        /// <summary>
+        /// поток для записи результата обработки
+        /// </summary>
+        static StreamWriter resulFileStreamWriter;
+
+        /// <summary>
+        /// сообщение лога в консоль
+        /// </summary>
+        /// <param name="message">текст собщения</param>
         static void Log(string message)
         {
             Console.WriteLine(message);
@@ -40,38 +77,57 @@ namespace AsyncAwait
                 return;
             }
 
-            Log("Подготовка завершена\n Для выполнения процедуры расчета нажмите любую клавишу...");
+            Log("Подготовка завершена\nДля выполнения нажмите любую клавишу...");
 
-            Task<double>[] tasks = new Task<double>[files.Count];
+            Console.ReadKey();
 
-            for (int i = 0; i < tasks.Length; i++)
-            {
-                tasks[i] = ReadAndCalculateFileData(files[i]);
-            }
-
-            for (int i = 0; i < 100; i++)
-            {
-                Log($"!{i}");
-            }
-
+            _ = CalculateData(files);
 
             Console.ReadKey();
         }
 
-
-        static async Task<Double> ReadAndCalculateFileData(FileInfo file)
+        /// <summary>
+        /// обработка файлов с данными
+        /// </summary>
+        /// <param name="files">коллекция описаний файлов</param>
+        static async Task<bool> CalculateData(List<FileInfo> files)
         {
-            double res = await ReadAndCalculateFileDataAsync(file);
+            try
+            {
+                resulFileStreamWriter = new StreamWriter(resulFileName);
 
-            Log($"{file.FullName}  {res.ToString()}");
+                List<Task> tasks = new List<Task>();
 
-            return res;
+                foreach (var item in files)
+                {
+                    tasks.Add(ReadAndCalculateFileDataAsync(item));
+                }
+
+                await Task.WhenAll(tasks);
+
+                resulFileStreamWriter.Close();
+
+                Log("Обработка завершена...");
+
+                return true;
+
+            }
+            catch (Exception e)
+            {
+                Log($"Что-то пошло не так: {e.Message}");
+                return false;
+            }
         }
 
-        private static Task<double> ReadAndCalculateFileDataAsync(FileInfo file)
+        /// <summary>
+        /// задача для обработки файла:
+        /// обойти все строки
+        /// записать результат в общий файл
+        /// </summary>
+        /// <param name="file">файл</param>
+        private static Task ReadAndCalculateFileDataAsync(FileInfo file)
         {
-
-            return Task.Run<double>(() =>
+            return Task.Run(() =>
             {
                 Double res = 0;
 
@@ -91,12 +147,19 @@ namespace AsyncAwait
                         }
                     }
                 }
-                return res;
+
+                lock (resulFileStreamWriter)
+                {
+                    resulFileStreamWriter.WriteLine($"Файл: {file.Name} -> {res.ToString()}");
+                }
             }
             );
         }
 
-    static void Init()
+        /// <summary>
+        /// инициализация
+        /// </summary>
+        static void Init()
         {
             Log("Инициализация...");
 
@@ -106,15 +169,19 @@ namespace AsyncAwait
             rOperation = new Random(0);
             rPartMathOperation = new Random();
             rMulti = new Random(100);
-        }
-
-        static bool CreateFilesVault()
-        {
 
             string currentAppDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
 
             filesVaultDir = currentAppDir + @"\Files";
+            resulFileName = filesVaultDir + "\\result.dat";
+        }
 
+        /// <summary>
+        /// подготовка каталога хранилища файлов
+        /// </summary>
+        /// <returns></returns>
+        static bool CreateFilesVault()
+        {
             try
             {
 
@@ -149,6 +216,11 @@ namespace AsyncAwait
             }
         }
 
+        /// <summary>
+        /// генерация файлов данных в хранилище
+        /// </summary>
+        /// <param name="files">коллекция описаний файлов</param>
+        /// <returns>результат работы</returns>
         static bool GenerateFiles(out List<FileInfo> files)
         {
             try
